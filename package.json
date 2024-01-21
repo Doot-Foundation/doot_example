@@ -36,6 +36,10 @@
     "typescript": "^4.7.2"
   },
   "peerDependencies": {
-    "o1js": "0.15.*"
+    "o1js": "^0.15.2"
+  },
+  "dependencies": {
+    "@doot-oracles/client": "^1.0.5",
+    "dotenv": "^16.3.2"
   }
 }

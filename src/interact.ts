@@ -1,100 +1,82 @@
-/**
- * This script can be used to interact with the Add contract, after deploying it.
- *
- * We call the update() method on the contract, create a proof and send it to the chain.
- * The endpoint that we interact with is read from your config.json.
- *
- * This simulates a user interacting with the zkApp from a browser, except that here, sending the transaction happens
- * from the script and we're using your pre-funded zkApp account to pay the transaction fee. In a real web app, the user's wallet
- * would send the transaction and pay the fee.
- *
- * To run locally:
- * Build the project: `$ npm run build`
- * Run with node:     `$ node build/src/interact.js <deployAlias>`.
- */
-import fs from 'fs/promises';
-import { Mina, PrivateKey } from 'o1js';
-import { Add } from './Add.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-// check command line arg
-let deployAlias = process.argv[2];
-if (!deployAlias)
-  throw Error(`Missing <deployAlias> argument.
+import {
+  PrivateKey,
+  Mina,
+  AccountUpdate,
+  PublicKey,
+  Field,
+  Signature,
+} from 'o1js';
 
-Usage:
-node build/src/interact.js <deployAlias>
-`);
-Error.stackTraceLimit = 1000;
+import { Swap } from './Swap.js';
+import { Client, ClientResultObject } from '@doot-oracles/client';
 
-// parse config and private key from file
-type Config = {
-  deployAliases: Record<
-    string,
-    {
-      url: string;
-      keyPath: string;
-      fee: string;
-      feepayerKeyPath: string;
-      feepayerAlias: string;
-    }
-  >;
-};
-let configJson: Config = JSON.parse(await fs.readFile('config.json', 'utf8'));
-let config = configJson.deployAliases[deployAlias];
-let feepayerKeysBase58: { privateKey: string; publicKey: string } = JSON.parse(
-  await fs.readFile(config.feepayerKeyPath, 'utf8')
+const client = new Client(
+  process.env.DOOT_API_KEY ? process.env.DOOT_API_KEY : ''
 );
 
-let zkAppKeysBase58: { privateKey: string; publicKey: string } = JSON.parse(
-  await fs.readFile(config.keyPath, 'utf8')
+const mina: ClientResultObject = await client.Price('mina');
+const ethereum: ClientResultObject = await client.Price('ethereum');
+
+const priceM = Field.from(mina.price);
+const signatureM = Signature.fromBase58(mina.signature);
+const priceE = Field.from(ethereum.price);
+const signatureE = Signature.fromBase58(ethereum.signature);
+
+const oracle = PublicKey.fromBase58(mina.oracle);
+
+const proofsEnabled = false;
+
+const Local = Mina.LocalBlockchain({ proofsEnabled: proofsEnabled });
+Mina.setActiveInstance(Local);
+
+const deployerPK = Local.testAccounts[0].privateKey;
+const deployer = deployerPK.toPublicKey();
+const zkappPK = PrivateKey.random();
+const zkapp = zkappPK.toPublicKey();
+
+if (proofsEnabled) await Swap.compile();
+const swap = new Swap(zkapp);
+
+console.log('Deploying Swap...');
+
+let txn = await Mina.transaction(deployer, () => {
+  AccountUpdate.fundNewAccount(deployer);
+  swap.deploy({ zkappKey: zkappPK });
+});
+
+await txn.prove();
+await txn.sign([zkappPK, deployerPK]).send();
+
+console.log('\nInitial Rates ->');
+console.log('MINA / USD :', swap.minaPrice.get());
+console.log('ETH / USD :', swap.ethereumPrice.get());
+
+txn = await Mina.transaction(deployer, () => {
+  swap.updatePrices(priceE, signatureE, priceM, signatureM, oracle);
+});
+await txn.prove();
+await txn.sign([deployerPK]).send();
+
+console.log('\nExchange Rates ->');
+const onChainMinaPrice = swap.minaPrice.get().toString();
+const onChainEthPrice = swap.ethereumPrice.get().toString();
+
+const minaToEth = Field.from(
+  (BigInt(onChainMinaPrice) * 10000000000n) / BigInt(onChainEthPrice)
 );
 
-let feepayerKey = PrivateKey.fromBase58(feepayerKeysBase58.privateKey);
-let zkAppKey = PrivateKey.fromBase58(zkAppKeysBase58.privateKey);
+const ethToMina = Field.from(
+  (BigInt(onChainEthPrice) * 10000000000n) / BigInt(onChainMinaPrice)
+);
 
-// set up Mina instance and contract we interact with
-const Network = Mina.Network(config.url);
-const fee = Number(config.fee) * 1e9; // in nanomina (1 billion = 1.0 mina)
-Mina.setActiveInstance(Network);
-let feepayerAddress = feepayerKey.toPublicKey();
-let zkAppAddress = zkAppKey.toPublicKey();
-let zkApp = new Add(zkAppAddress);
+txn = await Mina.transaction(deployer, () => {
+  swap.setExchangeRates(minaToEth, ethToMina);
+});
+await txn.prove();
+await txn.sign([deployerPK]).send();
 
-let sentTx;
-// compile the contract to create prover keys
-console.log('compile the contract...');
-await Add.compile();
-try {
-  // call update() and send transaction
-  console.log('build transaction and create proof...');
-  let tx = await Mina.transaction({ sender: feepayerAddress, fee }, () => {
-    zkApp.update();
-  });
-  await tx.prove();
-  console.log('send transaction...');
-  sentTx = await tx.sign([feepayerKey]).send();
-} catch (err) {
-  console.log(err);
-}
-if (sentTx?.hash() !== undefined) {
-  console.log(`
-Success! Update transaction sent.
-
-Your smart contract state will be updated
-as soon as the transaction is included in a block:
-${getTxnUrl(config.url, sentTx.hash())}
-`);
-}
-
-function getTxnUrl(graphQlUrl: string, txnHash: string | undefined) {
-  const txnBroadcastServiceName = new URL(graphQlUrl).hostname
-    .split('.')
-    .filter((item) => item === 'minascan' || item === 'minaexplorer')?.[0];
-  const networkName = new URL(graphQlUrl).hostname
-    .split('.')
-    .filter((item) => item === 'berkeley' || item === 'testworld')?.[0];
-  if (txnBroadcastServiceName && networkName) {
-    return `https://minascan.io/${networkName}/tx/${txnHash}?type=zk-tx`;
-  }
-  return `Transaction hash: ${txnHash}`;
-}
+console.log('MINA / ETH :', swap.minaToEthExchange.get());
+console.log('ETH / MINA :', swap.ethToMinaExchange.get());

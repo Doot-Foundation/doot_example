@@ -1,26 +1,3 @@
-# Mina zkApp: Example_test
+# Doot Example Contract Interactions
 
-This template uses TypeScript.
-
-## How to build
-
-```sh
-npm run build
-```
-
-## How to run tests
-
-```sh
-npm run test
-npm run testw # watch mode
-```
-
-## How to run coverage
-
-```sh
-npm run coverage
-```
-
-## License
-
-[Apache-2.0](LICENSE)
+Guide to help people understand how to use the `@doot-oracles/client` npm package with their smart contract.
