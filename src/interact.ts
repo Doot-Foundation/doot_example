@@ -78,5 +78,11 @@ txn = await Mina.transaction(deployer, () => {
 await txn.prove();
 await txn.sign([deployerPK]).send();
 
-console.log('MINA / ETH :', swap.minaToEthExchange.get());
-console.log('ETH / MINA :', swap.ethToMinaExchange.get());
+console.log(
+  'MINA / ETH :',
+  Number(swap.minaToEthExchange.get().toString()) / 10000000000
+);
+console.log(
+  'ETH / MINA :',
+  Number(swap.ethToMinaExchange.get().toString()) / 10000000000
+);
