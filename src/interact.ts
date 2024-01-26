@@ -40,7 +40,7 @@ const zkapp = zkappPK.toPublicKey();
 if (proofsEnabled) await Swap.compile();
 const swap = new Swap(zkapp);
 
-console.log('Deploying Swap...');
+console.log('\nDeploying Swap...');
 
 let txn = await Mina.transaction(deployer, () => {
   AccountUpdate.fundNewAccount(deployer);
@@ -50,9 +50,13 @@ let txn = await Mina.transaction(deployer, () => {
 await txn.prove();
 await txn.sign([zkappPK, deployerPK]).send();
 
-console.log('\nInitial Rates ->');
-console.log('MINA / USD :', swap.minaPrice.get());
+console.log('\nInitial Prices On-Chain =========================');
+console.log('Fields ->');
+console.log('MINA / USD:', swap.minaPrice.get());
 console.log('ETH / USD :', swap.ethereumPrice.get());
+console.log('Strings ->');
+console.log('MINA / USD:', swap.minaPrice.get().toString());
+console.log('ETH / USD :', swap.ethereumPrice.get().toString());
 
 txn = await Mina.transaction(deployer, () => {
   swap.updatePrices(priceE, signatureE, priceM, signatureM, oracle);
@@ -60,7 +64,15 @@ txn = await Mina.transaction(deployer, () => {
 await txn.prove();
 await txn.sign([deployerPK]).send();
 
-console.log('\nExchange Rates ->');
+console.log('\nUpdated Prices On-Chain =========================');
+console.log('Fields ->');
+console.log('MINA / USD:', swap.minaPrice.get());
+console.log('ETH / USD :', swap.ethereumPrice.get());
+console.log('Strings ->');
+console.log('MINA / USD:', swap.minaPrice.get().toString());
+console.log('ETH / USD :', swap.ethereumPrice.get().toString());
+
+console.log('\nExchange Rates On-Chain =========================');
 const onChainMinaPrice = swap.minaPrice.get().toString();
 const onChainEthPrice = swap.ethereumPrice.get().toString();
 
@@ -78,6 +90,13 @@ txn = await Mina.transaction(deployer, () => {
 await txn.prove();
 await txn.sign([deployerPK]).send();
 
+console.log('Fields ->');
+console.log('MINA / USD:', swap.minaToEthExchange.get());
+console.log('ETH / USD :', swap.ethToMinaExchange.get());
+console.log('Strings ->');
+console.log('MINA / USD:', swap.minaToEthExchange.get().toString());
+console.log('ETH / USD :', swap.ethToMinaExchange.get().toString());
+console.log('Actual Exchange Rates(/10**10) ->');
 console.log(
   'MINA / ETH :',
   Number(swap.minaToEthExchange.get().toString()) / 10000000000
@@ -86,3 +105,4 @@ console.log(
   'ETH / MINA :',
   Number(swap.ethToMinaExchange.get().toString()) / 10000000000
 );
+console.log('\n');
