@@ -91,11 +91,11 @@ await txn.prove();
 await txn.sign([deployerPK]).send();
 
 console.log('Fields ->');
-console.log('MINA / USD:', swap.minaToEthExchange.get());
-console.log('ETH / USD :', swap.ethToMinaExchange.get());
+console.log('MINA / ETH:', swap.minaToEthExchange.get());
+console.log('ETH / MINA :', swap.ethToMinaExchange.get());
 console.log('Strings ->');
-console.log('MINA / USD:', swap.minaToEthExchange.get().toString());
-console.log('ETH / USD :', swap.ethToMinaExchange.get().toString());
+console.log('MINA / ETH:', swap.minaToEthExchange.get().toString());
+console.log('ETH / MINA :', swap.ethToMinaExchange.get().toString());
 console.log('Actual Exchange Rates(/10**10) ->');
 console.log(
   'MINA / ETH :',
